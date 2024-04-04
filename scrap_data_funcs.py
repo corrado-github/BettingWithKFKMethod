@@ -1,0 +1,632 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Dec 27 15:35:01 2023
+
+@author: corrado
+
+sites hard to scrap: 1xbet, bet365, betfair
+"""
+
+from bs4 import BeautifulSoup
+import requests
+import pandas as pd
+import datetime as dt
+import time
+import os, sys
+import pdb
+
+import numpy as np
+from thefuzz import fuzz
+from difflib import SequenceMatcher
+
+from selenium import webdriver
+
+from selenium.webdriver import Firefox
+from selenium.webdriver.firefox.service import Service
+from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.keys import Keys
+####################
+def get_soup(url):
+
+    data  = requests.get(url, headers={'User-Agent':'foo'}).text
+    soup = BeautifulSoup(data, "html5lib") # "html.parser") #"html5lib")
+    time = dt.datetime.now()
+    return soup, time
+###################  
+def make_macth_dict(df):
+    match_dict = dict.fromkeys(list(df.columns))
+    for key in match_dict.keys():
+        match_dict[key] = []
+        
+    return match_dict
+#####################
+def get_betexplorer_results(cols_results, service, options):
+    url = "https://www.betexplorer.com/football/results/"
+
+    df = pd.DataFrame(columns=cols_results)
+
+    driver = Firefox(service=service, options=options)
+    driver.implicitly_wait(10)
+    driver.get(url)
+    #time to load the page
+    time.sleep(3)
+        
+    element_html= driver.find_element(By.CLASS_NAME,"wrap-section").get_attribute('outerHTML')
+    #quit the browser
+    #driver.quit()
+
+    nowtime = dt.datetime.now()
+    soup = BeautifulSoup(element_html, 'html.parser')
+    #quit the browser
+    driver.quit()
+    #prepare the dictionary
+    match_dict = make_macth_dict(df)
+    
+    ll = soup.find_all("tbody")
+    
+    #pdb.set_trace()
+
+    date = soup.find('a', class_="in-date-navigation__cal")
+
+    for league in ll:
+        if 'js-nrbanner-tbody' in str(league):
+            continue
+        rows_ll = league.find_all('tr')
+        league_name = rows_ll[0].find('a').text.strip()
+
+        for match in rows_ll[1:]:
+            match_details_ll = match.find_all('td')
+            matchtime = match_details_ll[0].span.text.strip()
+            try:
+                hometeam, guestteam = match_details_ll[0].a.text.strip().split(' - ')
+            except:
+                hometeam = match_details_ll[0].a.next.text
+                guestteam = match_details_ll[0].a.next.next.text
+                
+            if match_details_ll[2].find('a') != None:
+                score_ll = match_details_ll[2].a.text.strip().split(':')
+                if len(score_ll) == 2:
+                    homescore, guestscore = score_ll
+                    guestscore = guestscore.split()[0]
+                else:
+                    continue
+            else:
+                continue
+            
+        
+            match_dict['WebSite'].append('BetExplorer')
+            match_dict['LeagueName'].append(league_name)
+            match_dict['HomeTeam'].append(hometeam.strip())
+            match_dict['GuestTeam'].append(guestteam.strip())
+            match_dict['HomeScore'].append(int(homescore.strip()))
+            match_dict['GuestScore'].append(int(guestscore.strip()))
+            match_dict['DayTime'].append(nowtime)
+            match_dict['MatchTime'].append(matchtime)
+            match_dict['MatchDay'].append(date.text.strip())
+
+    df_ = pd.DataFrame(match_dict)
+    return  pd.concat([df, df_], ignore_index=True)
+#####################
+def get_betexplorer(df, service, options):
+    url = "https://www.betexplorer.com/"
+
+    driver = Firefox(service=service, options=options)
+    driver.implicitly_wait(10)
+    driver.get(url)
+
+    #time to load the page
+    time.sleep(3)
+    #scroll down the page
+    elem = driver.find_element(By.CLASS_NAME, "footer__bottom")
+    i=0
+    while i<5:
+        driver.execute_script("arguments[0].scrollIntoView();", elem)
+        time.sleep(1)
+        i +=1
+        
+    element_html= driver.find_element(By.XPATH,"//*[@id='nr-ko-all']").get_attribute('outerHTML')
+    #quit the browser
+    driver.quit()
+    
+    nowtime = dt.datetime.now()
+    soup = BeautifulSoup(element_html, 'html.parser')
+    ll = soup.find_all('ul', class_="leagues-list")
+    #make the dictionary
+    match_dict = make_macth_dict(df)
+
+
+    for item_league in ll:
+        ll_matches = item_league.find_all('li',class_="table-main__tournamentLiContent")
+        for match in ll_matches:
+            leaguename = item_league.find('p').text.strip()
+                
+            match_time = match.find('span', class_="matchDateStatus").text.strip()
+            if ':' not in match_time:
+                continue
+            
+            ll_odds = match.find_all('div',class_="table-main__odd")
+            ll_odds[0] = ll_odds[0].text.strip()
+            ll_odds[1] = ll_odds[1].text.strip()
+            ll_odds[2] = ll_odds[2].text.strip()
+            
+
+            if len(ll_odds) == 3 and all([len(item)>3 for item in ll_odds]):
+
+                match_dict['WebSite'].append('BetExplorer')
+                match_dict['LeagueName'].append(leaguename)
+                match_dict['DayTime'].append(nowtime)
+                match_dict['MatchTime'].append(match_time)
+                match_dict['MatchDay'].append(nowtime.strftime('%d.%m.%Y'))
+                ll_teams = match.find_all('p')
+                match_dict['HomeTeam'].append(ll_teams[0].text)
+                match_dict['GuestTeam'].append(ll_teams[1].text)
+                match_dict['odd1'].append(float(ll_odds[0]))
+                match_dict['oddX'].append(float(ll_odds[1]))
+                match_dict['odd2'].append(float(ll_odds[2]))
+
+    df_ = pd.DataFrame(match_dict)
+    return  pd.concat([df, df_])
+#####################
+def scrap_eurobet(df, service, options):
+
+    driver = Firefox(service=service, options=options)
+    driver.implicitly_wait(10)
+    url = "https://www.eurobet.it/it/scommesse/#!/calcio/?temporalFilter=TEMPORAL_FILTER_OGGI"
+    driver.get(url)
+    time.sleep(5)
+    nowtime = dt.datetime.now()
+
+    element_html= driver.find_element(By.CLASS_NAME,'baseAnimation').get_attribute('outerHTML')
+    driver.quit()
+
+    soup = BeautifulSoup(element_html, 'html.parser')
+    ele = soup.find(class_='anti-row')
+    
+    match_dict = make_macth_dict(df)
+
+    web_site = "EuroBet"
+    league_name = None
+
+    ll = ele.contents
+    #pdb.set_trace()
+    for item in ll:
+        #check for empty rows
+        if item.name == None:
+            continue
+    
+        if item.find(class_='breadcrumb-meeting') != None:
+            league_name = item.find('div', class_="breadcrumb-meeting").text
+            
+        ll_odds = item.find(class_="group-quote-new").find_all('a')
+        if len(ll_odds) != 3: #in case one of the odds has a lock on it
+            continue
+        
+        #the rest of the rows
+        match_dict['WebSite'].append(web_site)
+        match_dict['DayTime'].append(nowtime)
+        match_dict['LeagueName'].append(league_name)
+        match_dict['MatchTime'].append(item.find(class_="time-box").text)
+        match_dict['MatchDay'].append(nowtime.strftime('%d.%m.%Y'))
+        ll_teams = item.find(class_="event-players").text.split('-')
+        match_dict['HomeTeam'].append(ll_teams[0].strip())
+        match_dict['GuestTeam'].append(ll_teams[1].strip())
+        match_dict['odd1'].append(float(ll_odds[0].text.strip()))
+        match_dict['oddX'].append(float(ll_odds[1].text.strip()))
+        match_dict['odd2'].append(float(ll_odds[2].text.strip()))
+
+    #pdb.set_trace()
+
+    df_ = pd.DataFrame(match_dict)
+    
+    return  pd.concat([df, df_], ignore_index=True)
+#######################
+def scrap_sisal(df, service, options):
+
+
+    driver = Firefox(service=service, options=options)
+    url = "https://www.sisal.it/scommesse-matchpoint/palinsesto/calcio?day=today"
+    driver.get(url)
+    nowtime = dt.datetime.now()
+    web_site = 'sisal'
+
+    ele = WebDriverWait(driver, 100).until(EC.presence_of_element_located(((By.TAG_NAME,'footer'))))
+    time.sleep(3)
+    list_buttons = driver.find_elements(By.CLASS_NAME,'competitionHeader_buttons__YrEq8')
+    #pdb.set_trace()
+    for button in list_buttons[2:]:
+        button.click()
+        #time.sleep(1)
+    
+
+    element_html = driver.find_element(By.CLASS_NAME,'sportsbook_rootWrapper__mknyB').get_attribute('outerHTML')
+    
+    soup = BeautifulSoup(element_html, 'html.parser')
+    driver.quit()
+
+    ele = soup.find('div', class_="justify-content-between")
+    match_dict = make_macth_dict(df)
+    ll = []
+    
+
+    
+    for item in ele.next_siblings:
+        league_name = item.find(class_="competitionHeader_labelCompetitionHeader__9Qeoz").text
+        
+        ll_rows = item.find_all(class_="grid_mg-row-wrapper__usTh4")
+        
+        for row in ll_rows:
+            ll_cols = row.find_all(class_='mg-cell')
+            #pdb.set_trace()
+            
+            ll_teams = []
+            for i in ll_cols[0].find(class_='regulator_container__SDVHD').strings:
+                ll_teams.append(i)
+            
+            ll_odds = ll_cols[1].find_all(class_='selectionButton_selectionPrice__B-6jq')
+            if len(ll_odds) != 3: #in case one of the odds has a lock on it
+                continue
+    
+            #the rest of the rows
+            match_dict['WebSite'].append(web_site)
+            match_dict['DayTime'].append(nowtime)
+            match_dict['LeagueName'].append(league_name)
+            match_dict['MatchTime'].append(row.find(class_='dateTimeBox_regulatorTime__ilXmi').text[5:])
+            match_dict['MatchDay'].append(nowtime.strftime('%d.%m.%Y'))
+            match_dict['HomeTeam'].append(ll_teams[0].strip())
+            match_dict['GuestTeam'].append(ll_teams[1].strip())
+            match_dict['odd1'].append(float(ll_odds[0].text.strip()))
+            match_dict['oddX'].append(float(ll_odds[1].text.strip()))
+            match_dict['odd2'].append(float(ll_odds[2].text.strip()))
+             
+    #pdb.set_trace()
+    df_ = pd.DataFrame(match_dict)
+    
+    return  pd.concat([df, df_], ignore_index=True)
+#######################
+def scrap_888sport(df, service, options):
+
+    weekday_dict = {'Mon': 'lun', 'Tue': 'mar', 'Wed': 'mer', 'Thu': 'gio', 'Fri': 'ven', 'Sat': 'sab', 'Sun': 'dom'}
+
+    driver = Firefox(service=service, options=options)
+    url = "https://www.888sport.it/calcio/#/filter/football"
+    driver.get(url)
+    nowtime = dt.datetime.now()
+    web_site = '888sport'
+
+    ele = WebDriverWait(driver, 100).until(EC.presence_of_element_located(((By.XPATH,"//div[@id='uc-cms-container']"))))
+    time.sleep(5)
+    button = driver.find_element(By.ID, "onetrust-accept-btn-handler")
+    button.click()
+    time.sleep(5)
+    
+    container_ll = driver.find_elements(By.CSS_SELECTOR, "div.KambiBC-mod-event-group-container")
+    
+    #pdb.set_trace()
+    for button in container_ll[2:]:
+        tt =  button.get_attribute('outerHTML')
+        soup = BeautifulSoup(tt, 'html.parser')
+        if soup.find('div', class_="KambiBC-expanded") is None:
+            button.click()
+            #time.sleep(1) 
+        else:
+            continue
+        
+    #pdb.set_trace()
+    container_ll = driver.find_elements(By.CSS_SELECTOR, "div.KambiBC-betty-collapsible-container")
+    for button in container_ll:
+        tt =  button.get_attribute('outerHTML')
+        soup = BeautifulSoup(tt, 'html.parser')
+        if 'totali' not in soup.text.split():
+            button.click()
+            #time.sleep(1)
+         
+    element_html = driver.find_element(By.CLASS_NAME,'KambiBC-event-groups-list').get_attribute('outerHTML')
+    soup = BeautifulSoup(element_html, 'html.parser')
+    match_dict = make_macth_dict(df)
+    driver.quit()
+    nations_ll = soup.find_all('div', class_="KambiBC-mod-event-group-container")
+    
+    
+    for nation in nations_ll[1:]:
+        land_name = nation.header.div.text.strip()
+        #print(land_name)
+        #pdb.set_trace()
+        nation_container = nation.find('div',class_="KambiBC-mod-event-group-event-container")
+
+        try:
+            titles_ll = nation_container.find_all(class_="KambiBC-betoffer-labels--with-title")
+        except:
+            print('nation_container')
+            pdb.set_trace()
+        league_ll = nation_container.find_all(class_="KambiBC-list-view__event-list")
+        #
+        try:
+            assert len(titles_ll) == len(league_ll), 'the two list have different lengths'
+        except:
+            print(land_name, 'the two list have different lengths')
+            #pdb.set_trace()
+            continue
+        
+        for i,item in enumerate(league_ll):
+            league_name = titles_ll[i].div.header.div.text.strip()
+            matches_ll = item.find_all('li')
+            
+            for match in matches_ll:
+                hour = match.span.next_sibling.text.strip()
+                day = match.span.text.strip()
+                weekday_today = weekday_dict[nowtime.strftime('%a')]
+                if day != weekday_today:
+                    continue
+                
+                ll_teams  = []
+                for name in match.find('div',class_="KambiBC-event-item__details").strings:
+                    ll_teams.append(name)
+                ll_odds = []
+                for odd in match.find('div',class_="KambiBC-bet-offers-list__column--num-3").strings:
+                    ll_odds.append(odd)
+            
+                #sometimes this list has lenght=0, so check it and, in case, skip this match
+                if len(ll_odds) < 3:
+                    continue
+                
+                match_dict['WebSite'].append(web_site)
+                match_dict['LeagueName'].append(land_name + ' ' + league_name)
+                match_dict['DayTime'].append(nowtime)
+                match_dict['MatchTime'].append(hour)
+                match_dict['MatchDay'].append(nowtime.strftime('%d.%m.%Y'))
+                match_dict['HomeTeam'].append(ll_teams[0].strip())
+                match_dict['GuestTeam'].append(ll_teams[1].strip())
+                match_dict['odd1'].append(float(ll_odds[0].strip()))
+                match_dict['oddX'].append(float(ll_odds[1].strip()))
+                match_dict['odd2'].append(float(ll_odds[2].strip()))
+
+    
+    df_ = pd.DataFrame(match_dict)
+    
+    return  pd.concat([df, df_], ignore_index=True)
+
+
+#######################
+def join_games_lists(df1, df2):
+    idx_ll = []
+    #pdb.set_trace()
+    for idx1, row1 in df1.iterrows():
+        for idx2, row2 in df2.iterrows():
+            odds_bool = [False, False, False]
+        
+            #r_home = SequenceMatcher(None, row1.HomeTeam,row2.HomeTeam).ratio()
+            #r_guest = SequenceMatcher(None, row1.GuestTeam,row2.GuestTeam).ratio()
+            #r_league = SequenceMatcher(None, row1.LeagueName,row2.LeagueName).ratio()
+            #pdb.set_trace()
+            r_home = fuzz.token_sort_ratio(row1.HomeTeam,row2.HomeTeam)
+            r_guest = fuzz.token_sort_ratio(row1.GuestTeam,row2.GuestTeam)
+            r_league = fuzz.token_sort_ratio(row1.LeagueName,row2.LeagueName)
+            r_matchtime = fuzz.token_sort_ratio(row1.MatchTime,row2.MatchTime)
+        
+            min_match_bool = (r_home > 60) and (r_guest > 60) and (r_league > 60) and (r_matchtime>70)
+            r_sum = r_home + r_guest + r_league
+            #pdb.set_trace()
+            if (r_sum > 60*4) and min_match_bool:
+                #pdb.set_trace()
+                idx_ll.append((idx1,idx2))
+            else:
+                continue
+    
+    return idx_ll
+#################
+def crossmatch_odds(idx_ll, df_odds_mean, df_odds):
+#    cols_bets = ['WebSite','LeagueName','HomeTeam','GuestTeam','bet1','betX','bet2','DayTime']
+    cols_bets = ['WebSite','LeagueName','MatchDay', 'MatchTime', 'HomeTeam','GuestTeam','odd1_diff','oddX_diff','odd2_diff','odd1','oddX','odd2','DayTime','idx_mean', 'idx_odds']
+    df_bets = pd.DataFrame(columns=cols_bets)
+    bets_dict = make_macth_dict(df_bets)
+
+    for (idx_mean, idx_odds) in idx_ll:
+        #pdb.set_trace()
+        row_mean = df_odds_mean.loc[idx_mean]
+        row_odds = df_odds.loc[idx_odds]
+        odds_bool = [False, False, False]
+        
+        
+        prob1_diff = round(1./row_mean.odd1_corr - 1./row_odds.odd1, 3)
+        probX_diff = round(1./row_mean.oddX_corr - 1./row_odds.oddX, 3)
+        prob2_diff = round(1./row_mean.odd2_corr - 1./row_odds.odd2, 3)
+        probs_diff_ll = [prob1_diff, probX_diff, prob2_diff]
+        probs_diff_bool = [(True if item>0.01 else False)  for item in probs_diff_ll]
+        
+        #pdb.set_trace()
+        odds_names = ['odd1_diff','oddX_diff','odd2_diff']
+        odds_diff_array = np.where(probs_diff_bool, probs_diff_ll, [None, None, None])
+        
+        for i, bet in enumerate(probs_diff_bool):
+            if bet:
+                #print(row_mean)
+                #print(row_odds)
+                #print(odds_diff_ll)
+                #pdb.set_trace()
+                for j,odd_name in enumerate(odds_names):
+                    if i==j: 
+                        bets_dict[odds_names[j]].append(odds_diff_array[i])
+                    else:
+                        bets_dict[odds_names[j]].append(None)
+                    
+                #
+                bets_dict['WebSite'].append(row_odds.WebSite)
+                bets_dict['LeagueName'].append(row_mean.LeagueName)
+                bets_dict['MatchDay'].append(row_mean.MatchDay)
+                bets_dict['MatchTime'].append(row_mean.MatchTime)
+                bets_dict['HomeTeam'].append(row_mean.HomeTeam)
+                bets_dict['GuestTeam'].append(row_mean.GuestTeam)
+                bets_dict['odd1'].append(row_odds.odd1)
+                bets_dict['oddX'].append(row_odds.oddX)
+                bets_dict['odd2'].append(row_odds.odd2)
+                bets_dict['DayTime'].append(row_mean.DayTime)
+                bets_dict['idx_mean'].append(idx_mean)
+                bets_dict['idx_odds'].append(idx_odds)
+            else:
+                continue
+    #pdb.set_trace()
+    return pd.DataFrame(bets_dict)
+#####################################
+def compute_1X2(row_res,row_bets):
+    #pdb.set_trace()
+    res_bool = np.array([False,False,False])
+    diff = row_res.HomeScore - row_res.GuestScore
+    if diff>0:
+        res = '1'
+        res_bool[0] = True
+    elif diff == 0:
+        res = 'X'
+        res_bool[1] = True
+    else:
+        res = '2'
+        res_bool[2] = True
+        
+    odds_array = row_bets[['odd1','oddX','odd2']].values
+    bets_bool = row_bets[['odd1_diff','oddX_diff','odd2_diff']].notna().values
+    earn_array = np.where(bets_bool & res_bool, odds_array, 0)
+    earn = np.sum(earn_array - 1., where=bets_bool, initial=0)
+    
+    return res, earn
+#####################################
+def crossmatch_bets_results(idx_ll, df_bets, df_results):
+    #pdb.set_trace()
+    cols_res = ['WebSite','LeagueName','HomeTeam','GuestTeam','odd1','oddX','odd2','BetOn1','BetOnX','BetOn2','Result','Profit','DayTime']
+    df_bets_results = pd.DataFrame(columns=cols_res)
+    bets_res = make_macth_dict(df_bets_results)
+    bets_dict = {0:'BetOn1', 1:'BetOnX', 2:'BetOn2'}    
+
+    for (idx_bets, idx_res) in idx_ll:
+        #pdb.set_trace()
+        row_bets = df_bets.loc[idx_bets]
+        row_res = df_results.loc[idx_res]
+        
+        r_home = fuzz.token_sort_ratio(row_bets.HomeTeam,row_res.HomeTeam)
+        r_guest = fuzz.token_sort_ratio(row_bets.GuestTeam,row_res.GuestTeam)
+        r_league = fuzz.token_sort_ratio(row_bets.LeagueName,row_res.LeagueName)
+        
+        min_match_bool = (r_home > 60) and (r_guest > 60) and (r_league > 60)
+        r_sum = r_home + r_guest + r_league
+        
+        odds_diff_ll = [row_bets.odd1_diff, row_bets.oddX_diff, row_bets.odd2_diff]
+        odds_diff_bool = [(True if item>0 else False)  for item in odds_diff_ll]
+    
+        if r_sum > 70*3 and min_match_bool and any(odds_diff_bool):
+            for i,item in enumerate(odds_diff_bool):
+                if item:
+                    bets_res[bets_dict[i]].append(1)
+                else:
+                    bets_res[bets_dict[i]].append(0)
+            
+            bets_res['WebSite'].append(row_bets.WebSite)
+            bets_res['LeagueName'].append(row_bets.LeagueName)
+            bets_res['HomeTeam'].append(row_bets.HomeTeam)
+            bets_res['GuestTeam'].append(row_bets.GuestTeam)
+            bets_res['odd1'].append(row_bets.odd1)
+            bets_res['oddX'].append(row_bets.oddX)
+            bets_res['odd2'].append(row_bets.odd2)
+            bets_res['DayTime'].append(row_bets.DayTime)
+            res_1X2, earn = compute_1X2(row_res,row_bets)
+            bets_res['Result'].append(res_1X2)
+            bets_res['Profit'].append(earn)
+
+    return pd.DataFrame(bets_res)
+############################
+'''
+
+def scrap_sisal_serieA(df, service, options):
+
+
+    driver = Firefox(service=service, options=options)
+    url = "https://www.sisal.it/scommesse-matchpoint/quote/calcio/serie-a"
+    driver.get(url)
+    nowtime = dt.datetime.now()
+
+    element_html= driver.find_element(By.XPATH,"//*[@id='fr-competition-detail-1-209']").get_attribute('outerHTML')
+    driver.quit()
+
+    soup = BeautifulSoup(element_html, 'html.parser')
+    match_dict = make_macth_dict(df)
+    list_rows = soup.find_all(class_="grid_mg-row__bvy-G")
+
+
+
+    for row in list_rows:
+        match_time_str = row.find_all(class_="dateTimeBox_regulatorTime__ilXmi")[0].text.split('br')[0]
+        #pdb.set_trace()
+        match_time = match_time_str[0:5] + ' ' + match_time_str[5:]
+        home_team = row.find_all(class_="regulator_team__0DTi8")[0].text
+        guest_team = row.find_all(class_="regulator_team__0DTi8")[1].text
+        odd1 = float(row.find_all(class_="selectionButton_selectionPrice__B-6jq")[0].text)
+        oddX = float(row.find_all(class_="selectionButton_selectionPrice__B-6jq")[1].text)
+        odd2 = float(row.find_all(class_="selectionButton_selectionPrice__B-6jq")[2].text)
+        match_dict['WebSite'].append('sisal') 
+        match_dict['DayTime'].append(nowtime)
+        match_dict['MatchTime'].append(match_time)
+        match_dict['HomeTeam'].append(home_team)
+        match_dict['GuestTeam'].append(guest_team)
+        match_dict['odd1'].append(odd1)
+        match_dict['oddX'].append(oddX)
+        match_dict['odd2'].append(odd2)
+        
+    df_ = pd.DataFrame(match_dict)
+    return  pd.concat([df, df_])
+######################
+#####################
+
+def get_betexplorer_serieA(url, df):
+
+    #get the soup
+    soup, time = get_soup(url)
+
+    match_dict = dict.fromkeys(list(df.columns))
+    for key in match_dict.keys():
+        match_dict[key] = []
+
+    soup_list = soup.find_all('table')
+
+    list_match = soup_list[0].find_all('tr')
+
+    for item in list_match[1:]:
+        match_tr = item.find_all('a')[0]
+        home_team = match_tr.find_all('span')[0].text
+        guest_team = match_tr.find_all('span')[1].text
+    
+        odd1 = item.find_all('td', class_='table-main__odds')[0].find_all('button')[0]['data-odd']
+        oddX = item.find_all('td', class_='table-main__odds')[1].find_all('button')[0]['data-odd']
+        odd2 = item.find_all('td', class_='table-main__odds')[2].find_all('button')[0]['data-odd']
+
+        match_time_list = item.find_all('td', class_='h-text-right')[0].text.split()
+        time_hour_list = match_time_list[1].split(':')
+        match_time_ini = dt.datetime(time.year,time.month,time.day, int(time_hour_list[0]),int(time_hour_list[1]))
+
+        if match_time_list[0] == 'Today':
+            match_time = match_time_ini
+        elif match_time_list[0] == 'Tomorrow':
+            match_time = match_time_ini + dt.timedelta(1)
+        else:
+            match_day = int(match_time_list[0].split('.')[0])
+            match_month = int(match_time_list[0].split('.')[1])
+            match_time = dt.datetime(time.year,match_month, match_day, int(time_hour_list[0]),int(time_hour_list[1]))
+            
+        match_dict['WebSite'] = 'betexplorer'
+        match_dict['DayTime'].append(time) 
+        match_dict['MatchTime'].append(match_time) 
+        match_dict['LeagueName'] = 'SerieA'
+        match_dict['HomeTeam'].append(home_team)
+        match_dict['GuestTeam'].append(guest_team)
+        match_dict['odd1'].append(float(odd1))
+        match_dict['oddX'].append(float(oddX))
+        match_dict['odd2'].append(float(odd2))
+
+    df_ = pd.DataFrame(match_dict)
+    
+    return  pd.concat([df, df_])
+'''
+
+
+
