@@ -124,7 +124,7 @@ def get_betexplorer(df, service, options):
     #scroll down the page
     elem = driver.find_element(By.CLASS_NAME, "footer__bottom")
     i=0
-    while i<5:
+    while i<10:
         driver.execute_script("arguments[0].scrollIntoView();", elem)
         time.sleep(1)
         i +=1
@@ -171,6 +171,108 @@ def get_betexplorer(df, service, options):
 
     df_ = pd.DataFrame(match_dict)
     return  pd.concat([df, df_])
+#####################
+def scrap_bwin(df, service, options):
+
+    driver = Firefox(service=service, options=options)
+    driver.implicitly_wait(10)
+    url = "https://sports.bwin.it/it/sports/calcio-4/oggi"
+    driver.get(url)
+    time.sleep(7)
+    nowtime = dt.datetime.now()
+    
+    
+
+    buttons = driver.find_elements(By.CSS_SELECTOR, "span.ui-icon")
+    buttons[1].click()
+    time.sleep(2)
+    button = driver.find_element(By.ID, "onetrust-accept-btn-handler")
+    button.click()
+    time.sleep(2)
+
+    #find footer
+    elem = driver.find_element(By.CSS_SELECTOR, "div.footer-wrapper")
+    #scroll down
+    i=0
+    while i<10:
+        driver.execute_script("arguments[0].scrollIntoView();", elem)
+        time.sleep(1)
+        i +=1
+
+#    while True:
+#        driver.execute_script('window.scrollTo(0, document.body.scrollHeight)')
+#        time.sleep(1)
+#        if driver.execute_script('return window.innerHeight + window.pageYOffset >= document.body.offsetHeight'):
+#            break
+
+    #pdb.set_trace()
+    
+    element_html= driver.find_element(By.CLASS_NAME,'grid-wrapper').get_attribute('outerHTML')
+    driver.quit()
+    match_dict = make_macth_dict(df)
+    web_site = "bwin"
+    
+    soup = BeautifulSoup(element_html, 'html.parser')
+    league_ll = soup.find_all('ms-event-group', class_='event-group')
+
+    for league_item in league_ll:
+        #pdb.set_trace()
+        league_name = league_item.find('div', class_='title').text.replace('|','')
+        if 'Combi+' in league_name.split(): #skip this
+            continue
+
+        match_ll = league_item.find_all('ms-event')
+        
+        for match_item in match_ll:
+            match_time = match_item.find('ms-event-timer', class_='grid-event-timer').text
+            
+            match_time_ll = match_time.split()
+            if 'Fra' == match_time_ll[0]: #the match starts in n minutes
+                match_time = nowtime + dt.timedelta(minutes = int(match_time_ll[1]) + 1)
+                match_time = match_time.strftime('%H:%M')
+            elif 'T' in match_time_ll[0]: #the match has already started
+                continue
+            elif 'Inizio' in match_time_ll[0]: #the match is going to start
+                continue
+            elif 'Intervallo' in match_time_ll[0]: #the match has already started
+                continue
+            else:
+                pass
+
+            ll_teams = match_item.find_all('div', class_='participant')
+            ll_odds = match_item.find_all('ms-option', class_='grid-option')
+            #if the odds are missing, continue
+            if len(ll_odds) == 0:
+                continue
+            
+            #if one odd is missing, continue
+            missing_odd = False
+            for odd in ll_odds[:3]:
+                if len(odd.text) == 0:
+                    missing_odd = True
+            if missing_odd:
+                continue
+
+    
+            #the rest of the rows
+            match_dict['WebSite'].append(web_site)
+            match_dict['DayTime'].append(nowtime)
+            match_dict['LeagueName'].append(league_name)
+            match_dict['MatchTime'].append(match_time)
+            match_dict['MatchDay'].append(nowtime.strftime('%d.%m.%Y'))
+            match_dict['HomeTeam'].append(ll_teams[0].text.strip())
+            try:
+                match_dict['odd1'].append(float(ll_odds[0].text.strip()))
+            except:
+                pdb.set_trace()
+            match_dict['GuestTeam'].append(ll_teams[1].text.strip())
+            
+            match_dict['oddX'].append(float(ll_odds[1].text.strip()))
+            match_dict['odd2'].append(float(ll_odds[2].text.strip()))
+
+    df_ = pd.DataFrame(match_dict)
+    
+    return  pd.concat([df, df_], ignore_index=True)
 #####################
 def scrap_eurobet(df, service, options):
 

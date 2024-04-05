@@ -75,7 +75,10 @@ df_odds = scrap_888sport(df_odds, service, options)
 dup_bool=df_odds.duplicated()
 idx2drop = df_odds[dup_bool].index
 df_odds.drop(idx2drop, inplace=True)
-
+#%%
+from scrap_data_funcs import *
+options, service = init_firefox()
+df_odds = scrap_bwin(df_odds, service, options)
 
 #%%
 from scrap_data_funcs import *
@@ -102,12 +105,6 @@ if os.path.isfile(bets_file_path):
     df_bets2write.to_csv(path_or_buf=bets_file_path, index=False)
 else:
     df_bets.to_csv(path_or_buf=bets_file_path, index=False)
-        
-#%%
-# check if there are bets for days that had no downloaded results
-#ll_res = df_bets_results_old.DayTime.apply(lambda x: x[:10]).drop_duplicates().values.tolist()
-#ll_bets = df_bets_old.DayTime.apply(lambda x: x[:10]).drop_duplicates().values.tolist()
-#missing_ll = [item for item in ll_bets if item not in ll_res]
 
 
 #%%
