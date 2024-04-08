@@ -414,7 +414,7 @@ def scrap_888sport(df, service, options):
         soup = BeautifulSoup(tt, 'html.parser')
         if soup.find('div', class_="KambiBC-expanded") is None:
             button.click()
-            #time.sleep(1) 
+            time.sleep(1) 
         else:
             continue
         
@@ -425,7 +425,7 @@ def scrap_888sport(df, service, options):
         soup = BeautifulSoup(tt, 'html.parser')
         if 'totali' not in soup.text.split():
             button.click()
-            #time.sleep(1)
+            time.sleep(1)
          
     element_html = driver.find_element(By.CLASS_NAME,'KambiBC-event-groups-list').get_attribute('outerHTML')
     soup = BeautifulSoup(element_html, 'html.parser')
