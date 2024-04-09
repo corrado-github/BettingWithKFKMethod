@@ -522,8 +522,7 @@ def join_games_lists(df1, df2):
     return idx_ll
 #################
 def crossmatch_odds(idx_ll, df_odds_mean, df_odds):
-#    cols_bets = ['WebSite','LeagueName','HomeTeam','GuestTeam','bet1','betX','bet2','DayTime']
-    cols_bets = ['WebSite','LeagueName','MatchDay', 'MatchTime', 'HomeTeam','GuestTeam','odd1_diff','oddX_diff','odd2_diff','odd1','oddX','odd2','DayTime','idx_mean', 'idx_odds']
+    cols_bets = ['WebSite','LeagueName','MatchDay', 'MatchTime', 'HomeTeam','GuestTeam','odd1','oddX','odd2','BetOn', 'DeltaProb','DayTime']
     df_bets = pd.DataFrame(columns=cols_bets)
     bets_dict = make_macth_dict(df_bets)
 
@@ -538,24 +537,23 @@ def crossmatch_odds(idx_ll, df_odds_mean, df_odds):
         probX_diff = round(1./row_mean.oddX_corr - 1./row_odds.oddX, 3)
         prob2_diff = round(1./row_mean.odd2_corr - 1./row_odds.odd2, 3)
         probs_diff_ll = [prob1_diff, probX_diff, prob2_diff]
-        probs_diff_bool = [(True if item>0.01 else False)  for item in probs_diff_ll]
+        probs_diff_bool = [(True if item>0.000 else False)  for item in probs_diff_ll]
         
         #pdb.set_trace()
-        odds_names = ['odd1_diff','oddX_diff','odd2_diff']
+        #odds_names = ['odd1_diff','oddX_diff','odd2_diff']
         odds_diff_array = np.where(probs_diff_bool, probs_diff_ll, [None, None, None])
         
         for i, bet in enumerate(probs_diff_bool):
             if bet:
-                #print(row_mean)
-                #print(row_odds)
-                #print(odds_diff_ll)
-                #pdb.set_trace()
-                for j,odd_name in enumerate(odds_names):
-                    if i==j: 
-                        bets_dict[odds_names[j]].append(odds_diff_array[i])
-                    else:
-                        bets_dict[odds_names[j]].append(None)
-                    
+                if i==0:
+                    bets_dict['BetOn'].append('1')
+                    bets_dict['DeltaProb'].append(round(odds_diff_array[i], 3))
+                elif i==1:
+                    bets_dict['BetOn'].append('X')
+                    bets_dict['DeltaProb'].append(round(odds_diff_array[i], 3))
+                elif i==2:
+                    bets_dict['BetOn'].append('2')
+                    bets_dict['DeltaProb'].append(round(odds_diff_array[i], 3))
                 #
                 bets_dict['WebSite'].append(row_odds.WebSite)
                 bets_dict['LeagueName'].append(row_mean.LeagueName)
@@ -567,8 +565,6 @@ def crossmatch_odds(idx_ll, df_odds_mean, df_odds):
                 bets_dict['oddX'].append(row_odds.oddX)
                 bets_dict['odd2'].append(row_odds.odd2)
                 bets_dict['DayTime'].append(row_mean.DayTime)
-                bets_dict['idx_mean'].append(idx_mean)
-                bets_dict['idx_odds'].append(idx_odds)
             else:
                 continue
     #pdb.set_trace()
@@ -587,17 +583,26 @@ def compute_1X2(row_res,row_bets):
     else:
         res = '2'
         res_bool[2] = True
+    
+    if row_bets.BetOn == '1':
+        bets_bool = [True, False, False]
+    elif row_bets.BetOn == 'X':
+        bets_bool = [False, True, False]
+    elif row_bets.BetOn == '2':
+        bets_bool = [False, False, True]
         
     odds_array = row_bets[['odd1','oddX','odd2']].values
-    bets_bool = row_bets[['odd1_diff','oddX_diff','odd2_diff']].notna().values
-    earn_array = np.where(bets_bool & res_bool, odds_array, 0)
+    try:
+        earn_array = np.where(bets_bool & res_bool, odds_array, 0)
+    except:
+        pdb.set_trace()
     earn = np.sum(earn_array - 1., where=bets_bool, initial=0)
     
     return res, earn
 #####################################
 def crossmatch_bets_results(idx_ll, df_bets, df_results):
     #pdb.set_trace()
-    cols_res = ['WebSite','LeagueName','HomeTeam','GuestTeam','odd1','oddX','odd2','BetOn1','BetOnX','BetOn2','Result','Profit','DayTime']
+    cols_res = ['WebSite','LeagueName','HomeTeam','GuestTeam','odd1','oddX','odd2','BetOn','DeltaProb','Result','Profit','DayTime']
     df_bets_results = pd.DataFrame(columns=cols_res)
     bets_res = make_macth_dict(df_bets_results)
     bets_dict = {0:'BetOn1', 1:'BetOnX', 2:'BetOn2'}    
@@ -613,16 +618,8 @@ def crossmatch_bets_results(idx_ll, df_bets, df_results):
         
         min_match_bool = (r_home > 60) and (r_guest > 60) and (r_league > 60)
         r_sum = r_home + r_guest + r_league
-        
-        odds_diff_ll = [row_bets.odd1_diff, row_bets.oddX_diff, row_bets.odd2_diff]
-        odds_diff_bool = [(True if item>0 else False)  for item in odds_diff_ll]
     
-        if r_sum > 70*3 and min_match_bool and any(odds_diff_bool):
-            for i,item in enumerate(odds_diff_bool):
-                if item:
-                    bets_res[bets_dict[i]].append(1)
-                else:
-                    bets_res[bets_dict[i]].append(0)
+        if r_sum > 70*3 and min_match_bool:
             
             bets_res['WebSite'].append(row_bets.WebSite)
             bets_res['LeagueName'].append(row_bets.LeagueName)
@@ -631,6 +628,8 @@ def crossmatch_bets_results(idx_ll, df_bets, df_results):
             bets_res['odd1'].append(row_bets.odd1)
             bets_res['oddX'].append(row_bets.oddX)
             bets_res['odd2'].append(row_bets.odd2)
+            bets_res['BetOn'].append(row_bets.BetOn)
+            bets_res['DeltaProb'].append(row_bets.DeltaProb)
             bets_res['DayTime'].append(row_bets.DayTime)
             res_1X2, earn = compute_1X2(row_res,row_bets)
             bets_res['Result'].append(res_1X2)
