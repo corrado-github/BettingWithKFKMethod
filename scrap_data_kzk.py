@@ -22,11 +22,11 @@ import numpy as np
 
 #%%
 ####################################
-cols_odds = ['WebSite', 'LeagueName', 'MatchTime', 'MatchDay', 'HomeTeam', 'GuestTeam', 'odd1', 'oddX', 'odd2', 'DayTime']
+cols_odds = ['WebSite', 'LeagueName', 'MatchDay', 'MatchTime', 'HomeTeam', 'GuestTeam', 'odd1', 'oddX', 'odd2', 'DayTime']
 df_odds_mean = pd.DataFrame(columns=cols_odds)
 df_odds = pd.DataFrame(columns=cols_odds)
 #
-cols_results = ['WebSite', 'LeagueName', 'MatchTime', 'MatchDay', 'HomeTeam', 'GuestTeam', 'HomeScore', 'GuestScore', 'DayTime']
+cols_results = ['WebSite', 'LeagueName', 'MatchDay', 'MatchTime', 'HomeTeam', 'GuestTeam', 'HomeScore', 'GuestScore', 'DayTime']
 #
 #%%
 # set service and options for firefox/selenium
@@ -99,7 +99,7 @@ curr_dir = os.getcwd()
 bets_file_name = '/bet_to_place.csv'
 bets_file_path = curr_dir + bets_file_name
 if os.path.isfile(bets_file_path):
-    df_bets_old = pd.read_csv(bets_file_path, index_col=False)
+    df_bets_old = pd.read_csv(bets_file_path, index_col=False, dtype={'BetOn': 'str'})
     df_bets2write = pd.concat([df_bets_old, df_bets], ignore_index=True)
     # write it
     df_bets2write.to_csv(path_or_buf=bets_file_path, index=False)
@@ -116,7 +116,7 @@ df_bets_results = crossmatch_bets_results(idx_ll, df_bets_old, df_results)
 bets_file_name = '/bet_placed_profit.csv'
 bets_file_path = curr_dir + bets_file_name
 if os.path.isfile(bets_file_path):
-    df_bets_results_old = pd.read_csv(bets_file_path, index_col=False)
+    df_bets_results_old = pd.read_csv(bets_file_path, index_col=False, dtype={'BetOn': 'str'})
     df_bets_results2write = pd.concat([df_bets_results_old, df_bets_results], ignore_index=True)
     #remove duplicates
     dup_bool=df_bets_results2write.duplicated()
@@ -130,3 +130,16 @@ else:
 import seaborn as sns
 df_bets_results2write['cumsum'] = df_bets_results2write.Profit.cumsum()
 sns.lineplot(data=df_bets_results2write.reset_index(), y="cumsum", x="index")
+#%%
+#def func_delta(row):
+#    somma = row.sum()
+#    bool_array = row > 0
+#    for i,item in enumerate(bool_array):
+#        if i==0 and item:
+#            return somma, '1'
+#        elif i==1 and item:
+#            return somma, 'X'
+#        elif i==2 and item:
+#            return somma, '2'
+#
+#df_bets2write[['DeltaProb','BetOn']] = df_bets2write[['odd1_diff','oddX_diff','odd2_diff']].apply(lambda row: pd.Series(func_delta(row)), axis=1)

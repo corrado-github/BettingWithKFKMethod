@@ -280,6 +280,9 @@ def scrap_eurobet(df, service, options):
     driver.implicitly_wait(10)
     url = "https://www.eurobet.it/it/scommesse/#!/calcio/?temporalFilter=TEMPORAL_FILTER_OGGI"
     driver.get(url)
+
+    #ele = WebDriverWait(driver, 100).until(EC.presence_of_element_located(((By.CLASS_NAME,'footer'))))
+
     time.sleep(5)
     nowtime = dt.datetime.now()
 
@@ -409,7 +412,7 @@ def scrap_888sport(df, service, options):
     container_ll = driver.find_elements(By.CSS_SELECTOR, "div.KambiBC-mod-event-group-container")
     
     #pdb.set_trace()
-    for button in container_ll[2:]:
+    for button in container_ll[1:]:
         tt =  button.get_attribute('outerHTML')
         soup = BeautifulSoup(tt, 'html.parser')
         if soup.find('div', class_="KambiBC-expanded") is None:
@@ -478,7 +481,6 @@ def scrap_888sport(df, service, options):
                 
                 match_dict['WebSite'].append(web_site)
                 match_dict['LeagueName'].append(land_name + ' ' + league_name)
-                match_dict['DayTime'].append(nowtime)
                 match_dict['MatchTime'].append(hour)
                 match_dict['MatchDay'].append(nowtime.strftime('%d.%m.%Y'))
                 match_dict['HomeTeam'].append(ll_teams[0].strip())
@@ -486,7 +488,7 @@ def scrap_888sport(df, service, options):
                 match_dict['odd1'].append(float(ll_odds[0].strip()))
                 match_dict['oddX'].append(float(ll_odds[1].strip()))
                 match_dict['odd2'].append(float(ll_odds[2].strip()))
-
+                match_dict['DayTime'].append(nowtime)
     
     df_ = pd.DataFrame(match_dict)
     
@@ -508,11 +510,11 @@ def join_games_lists(df1, df2):
             r_home = fuzz.token_sort_ratio(row1.HomeTeam,row2.HomeTeam)
             r_guest = fuzz.token_sort_ratio(row1.GuestTeam,row2.GuestTeam)
             r_league = fuzz.token_sort_ratio(row1.LeagueName,row2.LeagueName)
-            r_matchtime = fuzz.token_sort_ratio(row1.MatchTime,row2.MatchTime)
+            r_matchtime = fuzz.token_sort_ratio(row1.MatchDay,row2.MatchDay)
         
             min_match_bool = (r_home > 60) and (r_guest > 60) and (r_league > 60) and (r_matchtime>70)
             r_sum = r_home + r_guest + r_league
-            #pdb.set_trace()
+            
             if (r_sum > 60*4) and min_match_bool:
                 #pdb.set_trace()
                 idx_ll.append((idx1,idx2))
@@ -596,7 +598,7 @@ def compute_1X2(row_res,row_bets):
         earn_array = np.where(bets_bool & res_bool, odds_array, 0)
     except:
         pdb.set_trace()
-    earn = np.sum(earn_array - 1., where=bets_bool, initial=0)
+    earn = round(np.sum(earn_array - 1., where=bets_bool, initial=0),2)
     
     return res, earn
 #####################################
@@ -611,6 +613,7 @@ def crossmatch_bets_results(idx_ll, df_bets, df_results):
         #pdb.set_trace()
         row_bets = df_bets.loc[idx_bets]
         row_res = df_results.loc[idx_res]
+        
         
         r_home = fuzz.token_sort_ratio(row_bets.HomeTeam,row_res.HomeTeam)
         r_guest = fuzz.token_sort_ratio(row_bets.GuestTeam,row_res.GuestTeam)
