@@ -46,7 +46,8 @@ df_2show.reset_index(inplace=True, drop=True)
 #components
 title = dcc.Markdown(children='# Betting with the KFK method')
 graph = dcc.Graph(figure={})
-radioitems = dcc.RadioItems(options=['>0.00', '>0.01', '>0.02'], value='>0.00')
+value_widget = dcc.RadioItems(options=['>0.000', '>0.005', '>0.010', '>0.015'], value='>0.000')
+#value_widget = dcc.Slider(0,0.05, 0.01, value=0.0)
 
 item = html.Div([
          dbc.Row([
@@ -62,7 +63,7 @@ item = html.Div([
              ]),
          html.Br(),
          dbc.Row([
-             dbc.Col(radioitems, width=1, align='start'),
+            dbc.Col(value_widget, width=1, align='start'),
             dbc.Col(graph, width=5, align='center'),
             dbc.Col(dbc.Table.from_dataframe(df_2show, striped=True, bordered=True, 
                                              hover=True, size='sm')
@@ -77,21 +78,23 @@ app.layout = dbc.Container([item], fluid=True)
     # Add controls to build the interaction
 @app.callback(
     Output(component_id=graph, component_property='figure'),
-    Input(component_id=radioitems, component_property='value')
+    Input(component_id=value_widget, component_property='value')
     )
 
 def update_graph(val_chosen):
-    if val_chosen == '>0.00':
-        df_ = df_placed[df_placed.DeltaProb>0.00]
-    elif val_chosen == '>0.01':
-        df_ = df_placed[df_placed.DeltaProb>0.01]
-    elif val_chosen == '>0.02':
-        df_ = df_placed[df_placed.DeltaProb>0.02] 
+    if val_chosen == '>0.000':
+        df_ = df_placed[df_placed.DeltaProb>0.00].reset_index(drop=True).copy()
+    elif val_chosen == '>0.005':
+        df_ = df_placed[df_placed.DeltaProb>0.005].reset_index(drop=True).copy()
+    elif val_chosen == '>0.010':
+        df_ = df_placed[df_placed.DeltaProb>0.010].reset_index(drop=True).copy()
+    elif val_chosen == '>0.015':
+        df_ = df_placed[df_placed.DeltaProb>0.015].reset_index(drop=True).copy()
     
     df_['Cumulative Earnings'] = df_.Profit.cumsum()
     df_.reset_index(inplace=True)
-    df_.rename(columns={'index':'Bet Number'}, inplace=True)
-    fig = px.line(df_, x='Bet Number', y='Cumulative Earnings')
+    df_.rename(columns={'index':'# Bet'}, inplace=True)
+    fig = px.line(df_, x='# Bet', y='Cumulative Earnings')
     fig.update_layout(plot_bgcolor='black', paper_bgcolor='black')
     fig.update_xaxes(linecolor='black', gridcolor='lightgrey')
     fig.update_yaxes(linecolor='black', gridcolor='lightgrey')
