@@ -114,6 +114,9 @@ def get_betexplorer_results(cols_results, service, options):
                     elif score_ll[0] == 'CAN.':
                             homescore, guestscore = ['0','0']
                             note = 'CAN.'
+                    elif score_ll[0] == 'AWA.':
+                            homescore, guestscore = ['0','0']
+                            note = 'AWA.'
                     else:
                         try:
                             homescore, guestscore = score_ll[0].split(':')
@@ -608,7 +611,7 @@ def crossmatch_odds(idx_ll, df_odds_mean, df_odds):
 #####################################
 def compute_1X2(row_res,row_bets):
     #pdb.set_trace()
-    invalid_res = ['POSTP.', 'CAN.']
+    invalid_res = ['POSTP.', 'CAN.','AWA.']
     res_bool = np.array([False,False,False])
     diff = row_res.HomeScore - row_res.GuestScore
     if diff>0:
