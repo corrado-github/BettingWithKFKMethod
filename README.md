@@ -15,7 +15,7 @@ provides the today's soccer matches having one odd higher than the average
 odd (expressed as probability). Unlike in the KFK paper, the probabilities 
 has been corrected as explained in the [Kaggle 
 notebook](https://www.kaggle.com/code/corrrado/beat-the-bookie-probability-correction)
-in order to remove the need of the $$\alpha$$ parameter.
+in order to remove the need of the $\alpha$ parameter.
 
 ![Screenshot](dashboard.png)
 
