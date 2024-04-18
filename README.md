@@ -1,7 +1,7 @@
 # Betting with the KFK method
 This is the implementation of the method described in the paper
 ["Beating the bookies with their own numbers - and how the online sports betting market is
-rigged"] (https://arxiv.org/abs/1710.02824)
+rigged"](https://arxiv.org/abs/1710.02824)
 published by Kaunitz, Zhong, and Kreiner (KFK).
 
 ## Usage
