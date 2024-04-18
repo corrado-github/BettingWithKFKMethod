@@ -80,23 +80,55 @@ def get_betexplorer_results(cols_results, service, options):
         league_name = rows_ll[0].find('a').text.strip()
 
         for match in rows_ll[1:]:
-            match_details_ll = match.find_all('td')
-            matchtime = match_details_ll[0].span.text.strip()
-            try:
-                hometeam, guestteam = match_details_ll[0].a.text.strip().split(' - ')
-            except:
-                hometeam = match_details_ll[0].a.next.text
-                guestteam = match_details_ll[0].a.next.next.text
+            matchtime = match.find('td').span.text.strip()
+            match_details_ll = match.find_all('a')
+            hometeam, guestteam = match_details_ll[0].text.split(' - ')
+            if len(match_details_ll) == 2:
+                #pdb.set_trace()
+                #hometeam = match_details_ll[0].a.next.text
+                #guestteam = match_details_ll[0].a.next.next.text
+    
+                score_ll = match_details_ll[1].text.strip().split(' ')
+                score_partial_ll = match.find_all('td')[-1].text.replace('(','').replace(')','').split(', ')
+
                 
-            if match_details_ll[2].find('a') != None:
-                score_ll = match_details_ll[2].a.text.strip().split(':')
                 if len(score_ll) == 2:
-                    homescore, guestscore = score_ll
-                    guestscore = guestscore.split()[0]
+                    #pdb.set_trace()
+                    if score_ll[1] == 'PEN.':
+                        home_gols = 0
+                        guest_gols = 0
+                        for item in score_partial_ll[:-1]:
+                            gols = item.split(':')
+                            home_gols = home_gols + int(gols[0])
+                            guest_gols = guest_gols + int(gols[1])
+                        homescore, guestscore = [str(home_gols), str(guest_gols)]
+                        note = 'PEN.'
+                    elif score_ll[1] == 'ET':
+                        homescore, guestscore = score_ll[0].split(':')
+                        note = 'ET'
+
+                elif len(score_ll) == 1:
+                    if score_ll[0] == 'POSTP.':
+                        homescore, guestscore = ['0','0']
+                        note = 'POSTP.'
+                    elif score_ll[0] == 'CAN.':
+                            homescore, guestscore = ['0','0']
+                            note = 'CAN.'
+                    else:
+                        try:
+                            homescore, guestscore = score_ll[0].split(':')
+                        except:
+                            pdb.set_trace()
+                        note = None
                 else:
+                    print('No result for ', league_name, ' ', hometeam, ' ', guestteam)
+                    homescore, guestscore = ['0','0']
+                    note = 'NO RES.'
                     continue
             else:
-                continue
+                #pdb.set_trace()
+                homescore, guestscore = ['0','0']
+                note = 'NO RES.'
             
         
             match_dict['WebSite'].append('BetExplorer')
@@ -108,6 +140,7 @@ def get_betexplorer_results(cols_results, service, options):
             match_dict['DayTime'].append(nowtime)
             match_dict['MatchTime'].append(matchtime)
             match_dict['MatchDay'].append(date.text.strip())
+            match_dict['Note'].append(note)
 
     df_ = pd.DataFrame(match_dict)
     return  pd.concat([df, df_], ignore_index=True)
@@ -247,6 +280,8 @@ def scrap_bwin(df, service, options):
             
             #if one odd is missing, continue
             missing_odd = False
+            if len(ll_odds)<3:
+                continue
             for odd in ll_odds[:3]:
                 if len(odd.text) == 0:
                     missing_odd = True
@@ -261,12 +296,11 @@ def scrap_bwin(df, service, options):
             match_dict['MatchTime'].append(match_time)
             match_dict['MatchDay'].append(nowtime.strftime('%d.%m.%Y'))
             match_dict['HomeTeam'].append(ll_teams[0].text.strip())
+            match_dict['GuestTeam'].append(ll_teams[1].text.strip())
             try:
                 match_dict['odd1'].append(float(ll_odds[0].text.strip()))
             except:
                 pdb.set_trace()
-            match_dict['GuestTeam'].append(ll_teams[1].text.strip())
-            
             match_dict['oddX'].append(float(ll_odds[1].text.strip()))
             match_dict['odd2'].append(float(ll_odds[2].text.strip()))
 
@@ -341,7 +375,7 @@ def scrap_sisal(df, service, options):
 
     ele = WebDriverWait(driver, 100).until(EC.presence_of_element_located(((By.TAG_NAME,'footer'))))
     time.sleep(3)
-    list_buttons = driver.find_elements(By.CLASS_NAME,'competitionHeader_buttons__YrEq8')
+    list_buttons = driver.find_elements(By.CLASS_NAME,'onetrust-accept-btn-handler')
     #pdb.set_trace()
     for button in list_buttons[2:]:
         button.click()
@@ -407,7 +441,7 @@ def scrap_888sport(df, service, options):
     time.sleep(5)
     button = driver.find_element(By.ID, "onetrust-accept-btn-handler")
     button.click()
-    time.sleep(5)
+    time.sleep(10)
     
     container_ll = driver.find_elements(By.CSS_SELECTOR, "div.KambiBC-mod-event-group-container")
     
@@ -417,7 +451,7 @@ def scrap_888sport(df, service, options):
         soup = BeautifulSoup(tt, 'html.parser')
         if soup.find('div', class_="KambiBC-expanded") is None:
             button.click()
-            time.sleep(1) 
+            #time.sleep(1) 
         else:
             continue
         
@@ -428,7 +462,7 @@ def scrap_888sport(df, service, options):
         soup = BeautifulSoup(tt, 'html.parser')
         if 'totali' not in soup.text.split():
             button.click()
-            time.sleep(1)
+            #time.sleep(1)
          
     element_html = driver.find_element(By.CLASS_NAME,'KambiBC-event-groups-list').get_attribute('outerHTML')
     soup = BeautifulSoup(element_html, 'html.parser')
@@ -453,7 +487,7 @@ def scrap_888sport(df, service, options):
         try:
             assert len(titles_ll) == len(league_ll), 'the two list have different lengths'
         except:
-            print(land_name, 'the two list have different lengths')
+            print(land_name, ': the two list have different lengths')
             #pdb.set_trace()
             continue
         
@@ -574,6 +608,7 @@ def crossmatch_odds(idx_ll, df_odds_mean, df_odds):
 #####################################
 def compute_1X2(row_res,row_bets):
     #pdb.set_trace()
+    invalid_res = ['POSTP.', 'CAN.']
     res_bool = np.array([False,False,False])
     diff = row_res.HomeScore - row_res.GuestScore
     if diff>0:
@@ -599,12 +634,15 @@ def compute_1X2(row_res,row_bets):
     except:
         pdb.set_trace()
     earn = round(np.sum(earn_array - 1., where=bets_bool, initial=0),2)
+    #if the match was postponed or canceled
+    if row_res.Note in invalid_res:
+        earn = 0
     
     return res, earn
 #####################################
 def crossmatch_bets_results(idx_ll, df_bets, df_results):
     #pdb.set_trace()
-    cols_res = ['WebSite','LeagueName','HomeTeam','GuestTeam','odd1','oddX','odd2','BetOn','DeltaProb','Result','Profit','DayTime']
+    cols_res = ['WebSite','LeagueName','HomeTeam','GuestTeam','odd1','oddX','odd2','BetOn','DeltaProb','Result','Profit','DayTime','Note']
     df_bets_results = pd.DataFrame(columns=cols_res)
     bets_res = make_macth_dict(df_bets_results)
     bets_dict = {0:'BetOn1', 1:'BetOnX', 2:'BetOn2'}    
@@ -637,6 +675,7 @@ def crossmatch_bets_results(idx_ll, df_bets, df_results):
             res_1X2, earn = compute_1X2(row_res,row_bets)
             bets_res['Result'].append(res_1X2)
             bets_res['Profit'].append(earn)
+            bets_res['Note'].append(row_res.Note)
 
     return pd.DataFrame(bets_res)
 ############################
