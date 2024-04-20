@@ -82,7 +82,22 @@ def get_betexplorer_results(cols_results, service, options):
         for match in rows_ll[1:]:
             matchtime = match.find('td').span.text.strip()
             match_details_ll = match.find_all('a')
-            hometeam, guestteam = match_details_ll[0].text.split(' - ')
+            try:
+                teams_ll = match_details_ll[0].text.split(' - ')
+                if len(teams_ll) == 2:
+                    hometeam, guestteam = teams_ll
+                else:
+                    team_strong = match_details_ll[0].strong.text
+                    subtr_str = match_details_ll[0].text.replace(match_details_ll[0].strong.text, '').replace(' - ','')
+                    if team_strong[:3] == teams_ll[0][:3]:
+                        hometeam = team_strong
+                        guestteam = teams_ll[0]
+                    else:
+                        hometeam = teams_ll[0]
+                        guestteam = team_strong
+                                
+            except:
+                pdb.set_trace()
             if len(match_details_ll) == 2:
                 #pdb.set_trace()
                 #hometeam = match_details_ll[0].a.next.text
@@ -384,6 +399,10 @@ def scrap_sisal(df, service, options):
         button.click()
         #time.sleep(1)
     
+    #click on the league bar to show the match of every league 
+    container_ll = driver.find_elements(By.CSS_SELECTOR, "i.icon-Arrow-Down")
+    for button in container_ll:
+        button.click()
 
     element_html = driver.find_element(By.CLASS_NAME,'sportsbook_rootWrapper__mknyB').get_attribute('outerHTML')
     
