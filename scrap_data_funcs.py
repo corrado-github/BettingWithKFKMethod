@@ -55,7 +55,22 @@ def get_betexplorer_results(cols_results, service, options):
     driver.get(url)
     #time to load the page
     time.sleep(3)
-        
+
+    #scroll down the page
+    #find footer
+    elem = driver.find_element(By.CSS_SELECTOR, "footer.footer")
+    #scroll down
+    elems = driver.find_elements(By.CSS_SELECTOR, "tbody")
+    items_len = len(elems)
+    while True:
+        driver.execute_script("arguments[0].scrollIntoView();", elem)
+        time.sleep(1)
+        elems = driver.find_elements(By.CSS_SELECTOR, "tbody")
+        if len(elems) == items_len:
+            break
+        else:
+            items_len = len(elems)
+
     element_html= driver.find_element(By.CLASS_NAME,"wrap-section").get_attribute('outerHTML')
     #quit the browser
     #driver.quit()
@@ -172,14 +187,27 @@ def get_betexplorer(df, service, options):
 
     #time to load the page
     time.sleep(3)
+    #click on accept cookies
+    button = driver.find_element(By.ID, "onetrust-accept-btn-handler")
+    button.click()
+    time.sleep(2)
     #scroll down the page
+    #find footer
     elem = driver.find_element(By.CLASS_NAME, "footer__bottom")
-    i=0
-    while i<10:
+    #scroll down
+    elems = driver.find_elements(By.CSS_SELECTOR, "ul.leagues-list")
+    items_len = len(elems)
+    while True:
         driver.execute_script("arguments[0].scrollIntoView();", elem)
         time.sleep(1)
-        i +=1
-        
+        elems = driver.find_elements(By.CSS_SELECTOR, "ul.leagues-list")
+        if len(elems) == items_len:
+            break
+        else:
+            items_len = len(elems)
+    
+    #pdb.set_trace()
+    
     element_html= driver.find_element(By.XPATH,"//*[@id='nr-ko-all']").get_attribute('outerHTML')
     #quit the browser
     driver.quit()
@@ -242,19 +270,18 @@ def scrap_bwin(df, service, options):
     time.sleep(2)
 
     #find footer
-    elem = driver.find_element(By.CSS_SELECTOR, "div.footer-wrapper")
+    elem = driver.find_element(By.CSS_SELECTOR, "vn-clock")
     #scroll down
-    i=0
-    while i<10:
+    elems = driver.find_elements(By.CSS_SELECTOR, "ms-event")
+    items_len = len(elems)
+    while True:
         driver.execute_script("arguments[0].scrollIntoView();", elem)
         time.sleep(1)
-        i +=1
-
-#    while True:
-#        driver.execute_script('window.scrollTo(0, document.body.scrollHeight)')
-#        time.sleep(1)
-#        if driver.execute_script('return window.innerHeight + window.pageYOffset >= document.body.offsetHeight'):
-#            break
+        elems = driver.find_elements(By.CSS_SELECTOR, "ms-event")
+        if len(elems) == items_len:
+            break
+        else:
+            items_len = len(elems)
 
     #pdb.set_trace()
     
