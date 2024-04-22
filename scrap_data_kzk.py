@@ -88,8 +88,8 @@ df_results = get_betexplorer_results(cols_results, service, options)
 
 #%%
 from scrap_data_funcs import *
-idx_ll = join_games_lists(df_odds_mean, df_odds)
-df_bets = crossmatch_odds(idx_ll, df_odds_mean, df_odds)
+idx_ll = join_games_lists(df_odds, df_odds_mean)
+df_bets = crossmatch_odds(idx_ll, df_odds, df_odds_mean)
 
 #%%
 #make a dataframe

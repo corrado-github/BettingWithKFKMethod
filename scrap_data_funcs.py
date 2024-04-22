@@ -396,7 +396,7 @@ def scrap_eurobet(df, service, options):
         match_dict['LeagueName'].append(league_name)
         match_dict['MatchTime'].append(item.find(class_="time-box").text)
         match_dict['MatchDay'].append(nowtime.strftime('%d.%m.%Y'))
-        ll_teams = item.find(class_="event-players").text.split('-')
+        ll_teams = item.find(class_="event-players").text.split(' - ')
         match_dict['HomeTeam'].append(ll_teams[0].strip())
         match_dict['GuestTeam'].append(ll_teams[1].strip())
         match_dict['odd1'].append(float(ll_odds[0].text.strip()))
@@ -419,17 +419,22 @@ def scrap_sisal(df, service, options):
     web_site = 'sisal'
 
     ele = WebDriverWait(driver, 100).until(EC.presence_of_element_located(((By.TAG_NAME,'footer'))))
-    time.sleep(3)
-    list_buttons = driver.find_elements(By.CLASS_NAME,'onetrust-accept-btn-handler')
+    time.sleep(10)
     #pdb.set_trace()
-    for button in list_buttons[2:]:
+    #click on accept cookies
+    button = driver.find_element(By.ID,'onetrust-accept-btn-handler')
+    tt =  button.get_attribute('outerHTML')
+    soup = BeautifulSoup(tt, 'html.parser')    
+    if soup.find('button', class_="") is not None:
         button.click()
-        #time.sleep(1)
+    
+    #button.click()
     
     #click on the league bar to show the match of every league 
     container_ll = driver.find_elements(By.CSS_SELECTOR, "i.icon-Arrow-Down")
     for button in container_ll:
         button.click()
+        #time.sleep(1)
 
     element_html = driver.find_element(By.CLASS_NAME,'sportsbook_rootWrapper__mknyB').get_attribute('outerHTML')
     
@@ -438,7 +443,6 @@ def scrap_sisal(df, service, options):
 
     ele = soup.find('div', class_="justify-content-between")
     match_dict = make_macth_dict(df)
-    ll = []
     
 
     
@@ -486,11 +490,11 @@ def scrap_888sport(df, service, options):
     nowtime = dt.datetime.now()
     web_site = '888sport'
 
-    ele = WebDriverWait(driver, 100).until(EC.presence_of_element_located(((By.XPATH,"//div[@id='uc-cms-container']"))))
+    #ele = WebDriverWait(driver, 100).until(EC.presence_of_element_located(((By.XPATH,"//div[@id='uc-cms-container']"))))
     time.sleep(5)
     button = driver.find_element(By.ID, "onetrust-accept-btn-handler")
     button.click()
-    time.sleep(10)
+    time.sleep(3)
     
     container_ll = driver.find_elements(By.CSS_SELECTOR, "div.KambiBC-mod-event-group-container")
     
@@ -583,9 +587,13 @@ def join_games_lists(df1, df2):
     idx_ll = []
     #pdb.set_trace()
     for idx1, row1 in df1.iterrows():
+        found_bool = False
+        ratios_df = pd.DataFrame()
+        match_name_bet = row1.LeagueName + ' ' + row1.HomeTeam + ' ' + row1.GuestTeam
+
         for idx2, row2 in df2.iterrows():
-            odds_bool = [False, False, False]
-        
+            match_name_mean = row2.LeagueName + ' ' + row2.HomeTeam + ' ' + row2.GuestTeam
+
             #r_home = SequenceMatcher(None, row1.HomeTeam,row2.HomeTeam).ratio()
             #r_guest = SequenceMatcher(None, row1.GuestTeam,row2.GuestTeam).ratio()
             #r_league = SequenceMatcher(None, row1.LeagueName,row2.LeagueName).ratio()
@@ -593,31 +601,46 @@ def join_games_lists(df1, df2):
             r_home = fuzz.token_sort_ratio(row1.HomeTeam,row2.HomeTeam)
             r_guest = fuzz.token_sort_ratio(row1.GuestTeam,row2.GuestTeam)
             r_league = fuzz.token_sort_ratio(row1.LeagueName,row2.LeagueName)
-            r_matchtime = fuzz.token_sort_ratio(row1.MatchDay,row2.MatchDay)
+            r_matchtime = fuzz.token_sort_ratio(row1.MatchTime,row2.MatchTime)
         
-            min_match_bool = (r_home > 60) and (r_guest > 60) and (r_league > 60) and (r_matchtime>70)
+            
+            min_match_bool = (r_home > 50) and (r_guest > 50) and (r_league > 50) and (r_matchtime>80)
             r_sum = r_home + r_guest + r_league
             
-            if (r_sum > 60*4) and min_match_bool:
-                #pdb.set_trace()
-                idx_ll.append((idx1,idx2))
-            else:
-                continue
+            ds = pd.Series([row2.HomeTeam, row2.GuestTeam, r_sum,min_match_bool ,idx1, idx2], index=['home','guest','r_sum', 'bool','idx1','idx2'])
+            ratios_df = ratios_df.append(ds, ignore_index=True)
+            
+            #if idx1 == 123 and idx2 == 55:
+            #    pdb.set_trace()
+            #print(match_name_bet, ' ', match_name_mean, ' ', r_sum, min_match_bool, r_home, r_guest, r_league, r_matchtime)
+            #pdb.set_trace()
+            
+        ratios_df.sort_values(by='r_sum', ascending=False, inplace=True)
+        #print(ratios_df.iloc[0])
+
+        #pdb.set_trace()
+        if ratios_df.iloc[0].bool and ratios_df.iloc[0].r_sum.astype(int) > 150:
+            #pdb.set_trace()
+            idx_ll.append((ratios_df.iloc[0].idx1.astype(int), ratios_df.iloc[0].idx2.astype(int), ratios_df.iloc[0].r_sum.astype(int)))
+        
+        #if found_bool == False:
+        #    print('missing ',row1.LeagueName,' ',row1.HomeTeam,' ', row1.GuestTeam, ' idx=', idx1)
     
     return idx_ll
 #################
-def crossmatch_odds(idx_ll, df_odds_mean, df_odds):
-    cols_bets = ['WebSite','LeagueName','MatchDay', 'MatchTime', 'HomeTeam','GuestTeam','odd1','oddX','odd2','BetOn', 'DeltaProb','DayTime']
+def crossmatch_odds(idx_ll, df_odds, df_odds_mean):
+    cols_bets = ['WebSite','LeagueName','MatchDay', 'MatchTime', 'HomeTeam','GuestTeam','odd1','oddX','odd2','BetOn', 'DeltaProb','DayTime','r_sum','idx1','idx2']
     df_bets = pd.DataFrame(columns=cols_bets)
     bets_dict = make_macth_dict(df_bets)
 
-    for (idx_mean, idx_odds) in idx_ll:
+    for (idx_odds, idx_mean, r_sum) in idx_ll:
         #pdb.set_trace()
         row_mean = df_odds_mean.loc[idx_mean]
         row_odds = df_odds.loc[idx_odds]
         odds_bool = [False, False, False]
         
-        
+
+            
         prob1_diff = round(1./row_mean.odd1_corr - 1./row_odds.odd1, 3)
         probX_diff = round(1./row_mean.oddX_corr - 1./row_odds.oddX, 3)
         prob2_diff = round(1./row_mean.odd2_corr - 1./row_odds.odd2, 3)
@@ -628,8 +651,12 @@ def crossmatch_odds(idx_ll, df_odds_mean, df_odds):
         #odds_names = ['odd1_diff','oddX_diff','odd2_diff']
         odds_diff_array = np.where(probs_diff_bool, probs_diff_ll, [None, None, None])
         
+        #if r_sum<170:
+        #    pdb.set_trace()
+        
         for i, bet in enumerate(probs_diff_bool):
             if bet:
+
                 if i==0:
                     bets_dict['BetOn'].append('1')
                     bets_dict['DeltaProb'].append(round(odds_diff_array[i], 3))
@@ -650,6 +677,9 @@ def crossmatch_odds(idx_ll, df_odds_mean, df_odds):
                 bets_dict['oddX'].append(row_odds.oddX)
                 bets_dict['odd2'].append(row_odds.odd2)
                 bets_dict['DayTime'].append(row_mean.DayTime)
+                bets_dict['r_sum'].append(r_sum)
+                bets_dict['idx1'].append(idx_odds)
+                bets_dict['idx2'].append(idx_mean)
             else:
                 continue
     #pdb.set_trace()
