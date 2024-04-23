@@ -88,7 +88,8 @@ df_results = get_betexplorer_results(cols_results, service, options)
 
 #%%
 from scrap_data_funcs import *
-idx_ll = join_games_lists(df_odds, df_odds_mean)
+today_str = df_odds.MatchDay[0]
+idx_ll = join_games_lists(df_odds, df_odds_mean, today_str)
 df_bets = crossmatch_odds(idx_ll, df_odds, df_odds_mean)
 
 #%%
@@ -110,7 +111,8 @@ else:
 #%%
 from scrap_data_funcs import *
 #df_test = df_results.iloc[1229:]
-idx_ll = join_games_lists(df_bets_old, df_results)
+yesterday_str = df_results.MatchDay[0]
+idx_ll = join_games_lists(df_bets_old, df_results,yesterday_str)
 df_bets_results = crossmatch_bets_results(idx_ll, df_bets_old, df_results)
 
 bets_file_name = '/bet_placed_profit.csv'

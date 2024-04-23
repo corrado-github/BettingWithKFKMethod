@@ -581,16 +581,24 @@ def scrap_888sport(df, service, options):
 
 
 #######################
-def join_games_lists(df1, df2):
+def join_games_lists(df1, df2, day2match):
     idx_ll = []
     #pdb.set_trace()
-    for idx1, row1 in df1.iterrows():
+    
+    #select only the bets of yesterday's results
+    bool_day = df1.MatchDay == day2match
+        
+    for idx1, row1 in df1[bool_day].iterrows():
         found_bool = False
         ratios_df = pd.DataFrame()
         match_name_bet = row1.LeagueName + ' ' + row1.HomeTeam + ' ' + row1.GuestTeam
+        
 
+        
         for idx2, row2 in df2.iterrows():
             match_name_mean = row2.LeagueName + ' ' + row2.HomeTeam + ' ' + row2.GuestTeam
+            
+
 
             #r_home = SequenceMatcher(None, row1.HomeTeam,row2.HomeTeam).ratio()
             #r_guest = SequenceMatcher(None, row1.GuestTeam,row2.GuestTeam).ratio()
@@ -608,19 +616,24 @@ def join_games_lists(df1, df2):
             ds = pd.Series([row2.HomeTeam, row2.GuestTeam, r_sum,min_match_bool ,idx1, idx2], index=['home','guest','r_sum', 'bool','idx1','idx2'])
             ratios_df = ratios_df.append(ds, ignore_index=True)
             
-            #if idx1 == 123 and idx2 == 55:
+            #if idx1 == 210 and idx2 == 16:
             #    pdb.set_trace()
-            #print(match_name_bet, ' ', match_name_mean, ' ', r_sum, min_match_bool, r_home, r_guest, r_league, r_matchtime)
+            #    print(match_name_bet, ' ', match_name_mean, ' ', r_sum, min_match_bool, r_home, r_guest, r_league, r_matchtime)
             #pdb.set_trace()
-            
+        
+        
         ratios_df.sort_values(by='r_sum', ascending=False, inplace=True)
-        #print(ratios_df.iloc[0])
 
-        #pdb.set_trace()
-        if ratios_df.iloc[0].bool and ratios_df.iloc[0].r_sum.astype(int) > 150:
+        #if idx1 >= 210:
+        #    print(match_name_bet, ' ', match_name_mean, ' ', r_sum, min_match_bool, r_home, r_guest, r_league, r_matchtime)
+        #    print(ratios_df.iloc[:5])
+        #    pdb.set_trace()
+            
+        if ratios_df.iloc[0].bool and ratios_df.iloc[0].r_sum.astype(int) > 190:
             #pdb.set_trace()
             idx_ll.append((ratios_df.iloc[0].idx1.astype(int), ratios_df.iloc[0].idx2.astype(int), ratios_df.iloc[0].r_sum.astype(int)))
-        
+            found_bool = True
+            
         if found_bool == False:
             print('missing bet', match_name_bet, ' idx=', idx1)
     
@@ -724,7 +737,7 @@ def crossmatch_bets_results(idx_ll, df_bets, df_results):
     bets_res = make_macth_dict(df_bets_results)
     bets_dict = {0:'BetOn1', 1:'BetOnX', 2:'BetOn2'}    
 
-    for (idx_bets, idx_res) in idx_ll:
+    for (idx_bets, idx_res, r_sum) in idx_ll:
         #pdb.set_trace()
         row_bets = df_bets.loc[idx_bets]
         row_res = df_results.loc[idx_res]
