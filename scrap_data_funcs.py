@@ -422,10 +422,8 @@ def scrap_sisal(df, service, options):
     time.sleep(10)
     #pdb.set_trace()
     #click on accept cookies
-    button = driver.find_element(By.ID,'onetrust-accept-btn-handler')
-    tt =  button.get_attribute('outerHTML')
-    soup = BeautifulSoup(tt, 'html.parser')    
-    if soup.find('button', class_="") is not None:
+    buttons_ll = driver.find_elements(By.ID,'onetrust-accept-btn-handler')   
+    if len(buttons_ll) != 0:
         button.click()
     
     #button.click()
@@ -623,8 +621,8 @@ def join_games_lists(df1, df2):
             #pdb.set_trace()
             idx_ll.append((ratios_df.iloc[0].idx1.astype(int), ratios_df.iloc[0].idx2.astype(int), ratios_df.iloc[0].r_sum.astype(int)))
         
-        #if found_bool == False:
-        #    print('missing ',row1.LeagueName,' ',row1.HomeTeam,' ', row1.GuestTeam, ' idx=', idx1)
+        if found_bool == False:
+            print('missing bet', match_name_bet, ' idx=', idx1)
     
     return idx_ll
 #################
@@ -731,30 +729,20 @@ def crossmatch_bets_results(idx_ll, df_bets, df_results):
         row_bets = df_bets.loc[idx_bets]
         row_res = df_results.loc[idx_res]
         
-        
-        r_home = fuzz.token_sort_ratio(row_bets.HomeTeam,row_res.HomeTeam)
-        r_guest = fuzz.token_sort_ratio(row_bets.GuestTeam,row_res.GuestTeam)
-        r_league = fuzz.token_sort_ratio(row_bets.LeagueName,row_res.LeagueName)
-        
-        min_match_bool = (r_home > 60) and (r_guest > 60) and (r_league > 60)
-        r_sum = r_home + r_guest + r_league
-    
-        if r_sum > 70*3 and min_match_bool:
-            
-            bets_res['WebSite'].append(row_bets.WebSite)
-            bets_res['LeagueName'].append(row_bets.LeagueName)
-            bets_res['HomeTeam'].append(row_bets.HomeTeam)
-            bets_res['GuestTeam'].append(row_bets.GuestTeam)
-            bets_res['odd1'].append(row_bets.odd1)
-            bets_res['oddX'].append(row_bets.oddX)
-            bets_res['odd2'].append(row_bets.odd2)
-            bets_res['BetOn'].append(row_bets.BetOn)
-            bets_res['DeltaProb'].append(row_bets.DeltaProb)
-            bets_res['DayTime'].append(row_bets.DayTime)
-            res_1X2, earn = compute_1X2(row_res,row_bets)
-            bets_res['Result'].append(res_1X2)
-            bets_res['Profit'].append(earn)
-            bets_res['Note'].append(row_res.Note)
+        bets_res['WebSite'].append(row_bets.WebSite)
+        bets_res['LeagueName'].append(row_bets.LeagueName)
+        bets_res['HomeTeam'].append(row_bets.HomeTeam)
+        bets_res['GuestTeam'].append(row_bets.GuestTeam)
+        bets_res['odd1'].append(row_bets.odd1)
+        bets_res['oddX'].append(row_bets.oddX)
+        bets_res['odd2'].append(row_bets.odd2)
+        bets_res['BetOn'].append(row_bets.BetOn)
+        bets_res['DeltaProb'].append(row_bets.DeltaProb)
+        bets_res['DayTime'].append(row_bets.DayTime)
+        res_1X2, earn = compute_1X2(row_res,row_bets)
+        bets_res['Result'].append(res_1X2)
+        bets_res['Profit'].append(earn)
+        bets_res['Note'].append(row_res.Note)
 
     return pd.DataFrame(bets_res)
 ############################
