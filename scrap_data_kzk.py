@@ -22,11 +22,11 @@ import numpy as np
 
 #%%
 ####################################
-cols_odds = ['WebSite', 'LeagueName', 'MatchDay', 'MatchTime', 'HomeTeam', 'GuestTeam', 'odd1', 'oddX', 'odd2', 'DayTime']
+cols_odds = ['WebSite', 'Country', 'LeagueName', 'MatchDay', 'MatchTime', 'HomeTeam', 'GuestTeam', 'odd1', 'oddX', 'odd2', 'DayTime']
 df_odds_mean = pd.DataFrame(columns=cols_odds)
 df_odds = pd.DataFrame(columns=cols_odds)
 #
-cols_results = ['WebSite', 'LeagueName', 'MatchDay', 'MatchTime', 'HomeTeam', 'GuestTeam', 'HomeScore', 'GuestScore', 'DayTime', 'Note']
+cols_results = ['WebSite', 'Country', 'LeagueName', 'MatchDay', 'MatchTime', 'HomeTeam', 'GuestTeam', 'HomeScore', 'GuestScore', 'DayTime', 'Note']
 #
 #%%
 # set service and options for firefox/selenium

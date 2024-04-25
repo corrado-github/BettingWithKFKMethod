@@ -92,7 +92,8 @@ def get_betexplorer_results(cols_results, service, options):
         if 'js-nrbanner-tbody' in str(league):
             continue
         rows_ll = league.find_all('tr')
-        league_name = rows_ll[0].find('a').text.strip()
+        country, league_name = rows_ll[0].find('a').text.split(': ')
+        #pdb.set_trace()
 
         for match in rows_ll[1:]:
             matchtime = match.find('td').span.text.strip()
@@ -165,7 +166,8 @@ def get_betexplorer_results(cols_results, service, options):
             
         
             match_dict['WebSite'].append('BetExplorer')
-            match_dict['LeagueName'].append(league_name)
+            match_dict['LeagueName'].append(league_name.strip())
+            match_dict['Country'].append(country.strip())
             match_dict['HomeTeam'].append(hometeam.strip())
             match_dict['GuestTeam'].append(guestteam.strip())
             match_dict['HomeScore'].append(int(homescore.strip()))
@@ -222,7 +224,7 @@ def get_betexplorer(df, service, options):
     for item_league in ll:
         ll_matches = item_league.find_all('li',class_="table-main__tournamentLiContent")
         for match in ll_matches:
-            leaguename = item_league.find('p').text.strip()
+            country, league_name = item_league.find('p').text.strip().split(': ')
                 
             match_time = match.find('span', class_="matchDateStatus").text.strip()
             if ':' not in match_time:
@@ -237,7 +239,8 @@ def get_betexplorer(df, service, options):
             if len(ll_odds) == 3 and all([len(item)>3 for item in ll_odds]):
 
                 match_dict['WebSite'].append('BetExplorer')
-                match_dict['LeagueName'].append(leaguename)
+                match_dict['Country'].append(country)
+                match_dict['LeagueName'].append(league_name)
                 match_dict['DayTime'].append(nowtime)
                 match_dict['MatchTime'].append(match_time)
                 match_dict['MatchDay'].append(nowtime.strftime('%d.%m.%Y'))
@@ -295,7 +298,7 @@ def scrap_bwin(df, service, options):
 
     for league_item in league_ll:
         #pdb.set_trace()
-        league_name = league_item.find('div', class_='title').text.replace('|','')
+        country, league_name = league_item.find('div', class_='title').text.split(' | ')
         if 'Combi+' in league_name.split(): #skip this
             continue
 
@@ -337,6 +340,7 @@ def scrap_bwin(df, service, options):
             #the rest of the rows
             match_dict['WebSite'].append(web_site)
             match_dict['DayTime'].append(nowtime)
+            match_dict['Country'].append(country)
             match_dict['LeagueName'].append(league_name)
             match_dict['MatchTime'].append(match_time)
             match_dict['MatchDay'].append(nowtime.strftime('%d.%m.%Y'))
@@ -384,7 +388,7 @@ def scrap_eurobet(df, service, options):
             continue
     
         if item.find(class_='breadcrumb-meeting') != None:
-            league_name = item.find('div', class_="breadcrumb-meeting").text
+            country, league_name = item.find('div', class_="breadcrumb-meeting").text.split(' > ')
             
         ll_odds = item.find(class_="group-quote-new").find_all('a')
         if len(ll_odds) != 3: #in case one of the odds has a lock on it
@@ -393,6 +397,7 @@ def scrap_eurobet(df, service, options):
         #the rest of the rows
         match_dict['WebSite'].append(web_site)
         match_dict['DayTime'].append(nowtime)
+        match_dict['Country'].append(country)
         match_dict['LeagueName'].append(league_name)
         match_dict['MatchTime'].append(item.find(class_="time-box").text)
         match_dict['MatchDay'].append(nowtime.strftime('%d.%m.%Y'))
@@ -424,7 +429,7 @@ def scrap_sisal(df, service, options):
     #click on accept cookies
     buttons_ll = driver.find_elements(By.ID,'onetrust-accept-btn-handler')   
     if len(buttons_ll) != 0:
-        button.click()
+        buttons_ll[0].click()
     
     #button.click()
     
@@ -445,7 +450,8 @@ def scrap_sisal(df, service, options):
 
     
     for item in ele.next_siblings:
-        league_name = item.find(class_="competitionHeader_labelCompetitionHeader__9Qeoz").text
+        country = item.find(class_="competitionHeader_labelCompetitionHeader__9Qeoz").text[:3]
+        league_name = item.find(class_="competitionHeader_labelCompetitionHeader__9Qeoz").text[4:]
         
         ll_rows = item.find_all(class_="grid_mg-row-wrapper__usTh4")
         
@@ -457,6 +463,9 @@ def scrap_sisal(df, service, options):
             for i in ll_cols[0].find(class_='regulator_container__SDVHD').strings:
                 ll_teams.append(i)
             
+            if len(ll_teams) != 2:
+                continue
+            
             ll_odds = ll_cols[1].find_all(class_='selectionButton_selectionPrice__B-6jq')
             if len(ll_odds) != 3: #in case one of the odds has a lock on it
                 continue
@@ -464,11 +473,15 @@ def scrap_sisal(df, service, options):
             #the rest of the rows
             match_dict['WebSite'].append(web_site)
             match_dict['DayTime'].append(nowtime)
-            match_dict['LeagueName'].append(league_name)
+            match_dict['Country'].append(country.strip())
+            match_dict['LeagueName'].append(league_name.strip())
             match_dict['MatchTime'].append(row.find(class_='dateTimeBox_regulatorTime__ilXmi').text[5:])
             match_dict['MatchDay'].append(nowtime.strftime('%d.%m.%Y'))
             match_dict['HomeTeam'].append(ll_teams[0].strip())
-            match_dict['GuestTeam'].append(ll_teams[1].strip())
+            try:
+                match_dict['GuestTeam'].append(ll_teams[1].strip())
+            except:
+                pdb.set_trace()
             match_dict['odd1'].append(float(ll_odds[0].text.strip()))
             match_dict['oddX'].append(float(ll_odds[1].text.strip()))
             match_dict['odd2'].append(float(ll_odds[2].text.strip()))
@@ -565,7 +578,8 @@ def scrap_888sport(df, service, options):
                     continue
                 
                 match_dict['WebSite'].append(web_site)
-                match_dict['LeagueName'].append(land_name + ' ' + league_name)
+                match_dict['Country'].append(land_name)
+                match_dict['LeagueName'].append(league_name)
                 match_dict['MatchTime'].append(hour)
                 match_dict['MatchDay'].append(nowtime.strftime('%d.%m.%Y'))
                 match_dict['HomeTeam'].append(ll_teams[0].strip())
@@ -591,12 +605,12 @@ def join_games_lists(df1, df2, day2match):
     for idx1, row1 in df1[bool_day].iterrows():
         found_bool = False
         ratios_df = pd.DataFrame()
-        match_name_bet = row1.LeagueName + ' ' + row1.HomeTeam + ' ' + row1.GuestTeam
+        match_name_bet = row1.Country + ' ' + row1.LeagueName + ' ' + row1.HomeTeam + ' ' + row1.GuestTeam
         
 
         
         for idx2, row2 in df2.iterrows():
-            match_name_mean = row2.LeagueName + ' ' + row2.HomeTeam + ' ' + row2.GuestTeam
+            match_name_mean = row2.Country + ' ' + row2.LeagueName + ' ' + row2.HomeTeam + ' ' + row2.GuestTeam
             
 
 
@@ -606,30 +620,31 @@ def join_games_lists(df1, df2, day2match):
             #pdb.set_trace()
             r_home = fuzz.token_sort_ratio(row1.HomeTeam,row2.HomeTeam)
             r_guest = fuzz.token_sort_ratio(row1.GuestTeam,row2.GuestTeam)
+            r_country = fuzz.token_sort_ratio(row1.Country,row2.Country)
             r_league = fuzz.token_sort_ratio(row1.LeagueName,row2.LeagueName)
             r_matchtime = fuzz.token_sort_ratio(row1.MatchTime,row2.MatchTime)
         
             
-            min_match_bool = (r_home > 50) and (r_guest > 50) and (r_league > 50) and (r_matchtime>80)
-            r_sum = r_home + r_guest + r_league
+            min_match_bool = (r_country > 50) and (r_home > 50) and (r_guest > 50) and (r_league > 50) and (r_matchtime>90)
+            r_sum = r_country + r_home + r_guest + r_league
             
-            ds = pd.Series([row2.HomeTeam, row2.GuestTeam, r_sum,min_match_bool ,idx1, idx2], index=['home','guest','r_sum', 'bool','idx1','idx2'])
+            ds = pd.Series([row2.HomeTeam, row2.GuestTeam, r_sum,min_match_bool ,idx1, idx2], index=['home','guest','r_sum', 'match_bool','idx1','idx2'])
             ratios_df = ratios_df.append(ds, ignore_index=True)
             
-            #if idx1 == 210 and idx2 == 16:
-            #    pdb.set_trace()
-            #    print(match_name_bet, ' ', match_name_mean, ' ', r_sum, min_match_bool, r_home, r_guest, r_league, r_matchtime)
+            #if idx1 == 307 and idx2 == 18:
+                #pdb.set_trace()
+                #print(match_name_bet, ' ', match_name_mean, ' ', r_sum, min_match_bool, r_home, r_guest, r_league, r_matchtime)
             #pdb.set_trace()
         
         
         ratios_df.sort_values(by='r_sum', ascending=False, inplace=True)
-
-        #if idx1 >= 210:
+        
+        #if idx1 == 307:
         #    print(match_name_bet, ' ', match_name_mean, ' ', r_sum, min_match_bool, r_home, r_guest, r_league, r_matchtime)
         #    print(ratios_df.iloc[:5])
         #    pdb.set_trace()
             
-        if ratios_df.iloc[0].bool and ratios_df.iloc[0].r_sum.astype(int) > 190:
+        if ratios_df.iloc[0].match_bool and ratios_df.iloc[0].r_sum.astype(int) > 240:
             #pdb.set_trace()
             idx_ll.append((ratios_df.iloc[0].idx1.astype(int), ratios_df.iloc[0].idx2.astype(int), ratios_df.iloc[0].r_sum.astype(int)))
             found_bool = True
@@ -640,7 +655,7 @@ def join_games_lists(df1, df2, day2match):
     return idx_ll
 #################
 def crossmatch_odds(idx_ll, df_odds, df_odds_mean):
-    cols_bets = ['WebSite','LeagueName','MatchDay', 'MatchTime', 'HomeTeam','GuestTeam','odd1','oddX','odd2','BetOn', 'DeltaProb','DayTime','r_sum','idx1','idx2']
+    cols_bets = ['WebSite','Country','LeagueName','MatchDay', 'MatchTime', 'HomeTeam','GuestTeam','odd1','oddX','odd2','BetOn', 'DeltaProb','DayTime','r_sum','idx1','idx2']
     df_bets = pd.DataFrame(columns=cols_bets)
     bets_dict = make_macth_dict(df_bets)
 
@@ -679,6 +694,7 @@ def crossmatch_odds(idx_ll, df_odds, df_odds_mean):
                     bets_dict['DeltaProb'].append(round(odds_diff_array[i], 3))
                 #
                 bets_dict['WebSite'].append(row_odds.WebSite)
+                bets_dict['Country'].append(row_mean.Country)
                 bets_dict['LeagueName'].append(row_mean.LeagueName)
                 bets_dict['MatchDay'].append(row_mean.MatchDay)
                 bets_dict['MatchTime'].append(row_mean.MatchTime)
